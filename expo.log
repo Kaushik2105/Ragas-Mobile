@@ -1,0 +1,9 @@
+
+> ragas-mobile@1.0.0 start
+> expo start --host lan --clear
+
+Starting project at C:\Workholic\CODES\ragas\ragas-mobile
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Waiting on http://localhost:8081
+Logs for your project will appear below.

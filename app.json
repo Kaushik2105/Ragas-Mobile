@@ -1,24 +1,52 @@
 {
   "expo": {
-    "name": "ragas-mobile",
+    "name": "RAGAS",
     "slug": "ragas-mobile",
+    "scheme": "ragas",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/play_store_512.png",
+    "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#080713",
+        "foregroundImage": "./assets/play_store_512.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "package": "com.kaushik_2105.ragasmobile",
+      "permissions": [
+        "android.permission.WAKE_LOCK",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-media-control",
+        {
+          "enableBackgroundAudio": true,
+          "audioSessionCategory": "playback"
+        }
+      ]
+    ],
+    "extra": {
+      "apiBaseUrl": "https://ragas-backend-api.onrender.com/api",
+      "eas": {
+        "projectId": "8e5c768b-62d0-4a88-8e9b-c385be5ae088"
+      }
+    },
+    "owner": "kaushik_2105"
   }
 }
