@@ -14,6 +14,7 @@ import RegisterScreen from '../screens/auth/RegisterScreen';
 import ResetPasswordScreen from '../screens/auth/ResetPasswordScreen';
 import FavoritesScreen from '../screens/user/FavoritesScreen';
 import HomeScreen from '../screens/user/HomeScreen';
+import DownloadsScreen from '../screens/user/DownloadsScreen';
 import PlaylistsScreen from '../screens/user/PlaylistsScreen';
 import ProfileScreen from '../screens/user/ProfileScreen';
 import SearchScreen from '../screens/user/SearchScreen';
@@ -39,6 +40,7 @@ const MainTabs = () => (
       <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarIcon: tabIcon('home') }} />
       <Tab.Screen name="Search" component={SearchScreen} options={{ tabBarIcon: tabIcon('search') }} />
       <Tab.Screen name="Favorites" component={FavoritesScreen} options={{ tabBarIcon: tabIcon('heart') }} />
+      <Tab.Screen name="Downloads" component={DownloadsScreen} options={{ tabBarIcon: tabIcon('download') }} />
       <Tab.Screen name="Playlists" component={PlaylistsScreen} options={{ tabBarIcon: tabIcon('list') }} />
       <Tab.Screen name="Profile" component={ProfileScreen} options={{ tabBarIcon: tabIcon('user') }} />
     </Tab.Navigator>

@@ -1,9 +1,11 @@
 import { Feather } from '@expo/vector-icons';
-import { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View, Animated, Easing } from 'react-native';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View, Animated, Easing } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { colors } from '../../theme/colors';
 import { font } from '../../theme/typography';
 import { assetUrl, formatDuration } from '../../utils/music';
+import { downloadEncryptedSong, isSongDownloaded, removeDownloadedSong } from '../../utils/offlineSongs';
 import usePlayerStore from '../../store/playerStore';
 
 const IconButton = ({ name, active, onPress }) => {
@@ -87,83 +89,69 @@ const Equalizer = ({ compact }) => (
   </View>
 );
 
-const SongCard = ({ song, songs = [], isFavorite = false, onFavorite, onAddToPlaylist, onFeedback, compact = false }) => {
-  const { currentSong, isPlaying, playSong } = usePlayerStore();
+const SongCard = ({ song, songs = [], isFavorite = false, onFavorite, onAddToPlaylist, onFeedback, onDownloadChange, compact = false }) => {
+  const { currentSong, isPlaying, playSong, addToQueue } = usePlayerStore();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const active = currentSong?.id === song.id;
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(15)).current;
-  const activeGlow = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 380,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 380,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [fadeAnim, slideAnim]);
-
-  useEffect(() => {
-    let anim;
-    if (active && isPlaying) {
-      anim = Animated.loop(
-        Animated.sequence([
-          Animated.timing(activeGlow, {
-            toValue: 1,
-            duration: 2000,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: false,
-          }),
-          Animated.timing(activeGlow, {
-            toValue: 0,
-            duration: 2000,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: false,
-          }),
-        ])
-      );
-      anim.start();
-    } else {
-      activeGlow.setValue(0);
-    }
+    let mounted = true;
+    isSongDownloaded(song.id).then((value) => {
+      if (mounted) setDownloaded(value);
+    });
     return () => {
-      if (anim) anim.stop();
+      mounted = false;
     };
-  }, [active, isPlaying, activeGlow]);
+  }, [song.id]);
 
-  const animatedBorderColor = active
-    ? activeGlow.interpolate({
-        inputRange: [0, 1],
-        outputRange: ['rgba(34, 211, 238, 0.35)', 'rgba(34, 211, 238, 0.95)'],
-      })
-    : colors.border;
+  const closeMenu = () => setMenuOpen(false);
+
+  const runMenuAction = (action) => {
+    closeMenu();
+    action?.();
+  };
+
+  const queueSong = () => {
+    addToQueue(song);
+    Toast.show({ type: 'success', text1: 'Added to queue' });
+  };
+
+  const toggleDownload = useCallback(async () => {
+    setDownloading(true);
+    try {
+      if (downloaded) {
+        await removeDownloadedSong(song.id);
+        setDownloaded(false);
+        onDownloadChange?.(song, false);
+        Toast.show({ type: 'success', text1: 'Removed offline song' });
+      } else {
+        await downloadEncryptedSong(song);
+        setDownloaded(true);
+        onDownloadChange?.(song, true);
+        Toast.show({ type: 'success', text1: 'Downloaded for offline listening' });
+      }
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Download failed',
+        text2: error?.message || 'Could not save this song offline',
+      });
+    } finally {
+      setDownloading(false);
+    }
+  }, [downloaded, onDownloadChange, song]);
 
   return (
-    // Outer view: JS-driver border color animation (cannot use native driver for color)
-    <Animated.View
+    <View
       style={[
         styles.card,
         compact && styles.compactCard,
-        { borderColor: animatedBorderColor },
+        active && styles.activeCard,
       ]}
     >
-      {/* Inner view: native-driver opacity + translate entrance animation */}
-      <Animated.View
-        style={[
-          styles.innerCard,
-          compact && styles.compactCard,
-          { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-        ]}
-      >
+      <View style={[styles.innerCard, compact && styles.compactCard]}>
         <Pressable onPress={() => playSong(song, songs)} style={[styles.cover, compact && styles.compactCover]}>
           {song.coverImage ? (
             <Image source={{ uri: assetUrl(song.coverImage) }} style={styles.coverImage} />
@@ -200,14 +188,44 @@ const SongCard = ({ song, songs = [], isFavorite = false, onFavorite, onAddToPla
         </View>
         <View style={styles.actions}>
           {compact ? <View style={styles.actionSpacerCompact} /> : <View style={styles.actionSpacer} />}
-          {onFeedback ? <IconButton name="star" onPress={() => onFeedback(song)} /> : null}
-          {onAddToPlaylist ? <IconButton name="list" onPress={() => onAddToPlaylist(song)} /> : null}
-          {onFavorite ? <IconButton name="heart" active={isFavorite} onPress={() => onFavorite(song)} /> : null}
+          <IconButton name="more-horizontal" active={downloaded} onPress={() => setMenuOpen(true)} />
         </View>
-      </Animated.View>
-    </Animated.View>
+      </View>
+      <Modal transparent visible={menuOpen} animationType="fade" onRequestClose={closeMenu}>
+        <Pressable style={styles.menuBackdrop} onPress={closeMenu}>
+          <Pressable style={styles.menuPanel}>
+            <Text numberOfLines={1} style={styles.menuTitle}>{song.title}</Text>
+            <MenuAction icon="list" label="Add to queue" onPress={() => runMenuAction(queueSong)} />
+            {onFavorite ? (
+              <MenuAction
+                icon="heart"
+                label={isFavorite ? 'Remove favorite' : 'Add favorite'}
+                active={isFavorite}
+                onPress={() => runMenuAction(() => onFavorite(song))}
+              />
+            ) : null}
+            {onAddToPlaylist ? <MenuAction icon="plus-square" label="Add to playlist" onPress={() => runMenuAction(() => onAddToPlaylist(song))} /> : null}
+            {onFeedback ? <MenuAction icon="star" label="Feedback" onPress={() => runMenuAction(() => onFeedback(song))} /> : null}
+            <MenuAction
+              icon={downloaded ? 'trash-2' : 'download'}
+              label={downloaded ? 'Remove download' : 'Download offline'}
+              active={downloaded}
+              busy={downloading}
+              onPress={toggleDownload}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
   );
 };
+
+const MenuAction = ({ icon, label, active, busy, onPress }) => (
+  <Pressable onPress={onPress} disabled={busy} style={({ pressed }) => [styles.menuAction, pressed && styles.menuActionPressed]}>
+    {busy ? <ActivityIndicator size="small" color={colors.cyan} /> : <Feather name={icon} size={18} color={active ? colors.pink : colors.text} />}
+    <Text style={[styles.menuActionText, active && styles.menuActionTextActive]}>{label}</Text>
+  </Pressable>
+);
 
 const styles = StyleSheet.create({
   card: {
@@ -338,6 +356,46 @@ const styles = StyleSheet.create({
   iconButtonActive: {
     borderColor: 'rgba(251, 113, 133, 0.4)',
   },
+  menuBackdrop: {
+    backgroundColor: 'rgba(2, 6, 23, 0.72)',
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 18,
+  },
+  menuPanel: {
+    backgroundColor: colors.panelStrong,
+    borderColor: colors.border,
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 8,
+    padding: 14,
+  },
+  menuTitle: {
+    color: colors.text,
+    fontFamily: font.extra,
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  menuAction: {
+    alignItems: 'center',
+    borderColor: colors.border,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    minHeight: 48,
+    paddingHorizontal: 14,
+  },
+  menuActionPressed: {
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+  },
+  menuActionText: {
+    color: colors.text,
+    fontFamily: font.semi,
+  },
+  menuActionTextActive: {
+    color: colors.pink,
+  },
   equalizer: {
     alignItems: 'flex-end',
     flexDirection: 'row',
@@ -350,4 +408,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SongCard;
+export default memo(SongCard);

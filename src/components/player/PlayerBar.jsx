@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
-import { useRef, useState } from 'react';
-import { Image, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Image, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../../theme/colors';
 import { font } from '../../theme/typography';
 import { assetUrl, formatDuration } from '../../utils/music';
@@ -9,9 +9,12 @@ import usePlayerStore from '../../store/playerStore';
 const PlayerBar = () => {
   const [seekWidth, setSeekWidth] = useState(1);
   const [isDraggingSeeking, setIsDraggingSeeking] = useState(false);
-  const seekPanResponderRef = useRef();
+  const [dragTime, setDragTime] = useState(0);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const dragTimeRef = useRef(0);
   const {
     currentSong,
+    queue,
     isPlaying,
     duration,
     currentTime,
@@ -24,24 +27,40 @@ const PlayerBar = () => {
     toggleShuffle,
     toggleRepeat,
     cleanup,
+    removeFromQueue,
+    clearQueue,
   } = usePlayerStore();
 
-  // Setup PanResponder for drag seeking
-  seekPanResponderRef.current = PanResponder.create({
+  const getSeekTime = (x) => {
+    if (!duration || !seekWidth) return 0;
+    return Math.max(0, Math.min((x / seekWidth) * duration, duration));
+  };
+
+  const previewSeek = (x) => {
+    const nextTime = getSeekTime(x);
+    dragTimeRef.current = nextTime;
+    setDragTime(nextTime);
+  };
+
+  const seekPanResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => {
+    onPanResponderGrant: (evt) => {
       setIsDraggingSeeking(true);
+      previewSeek(evt.nativeEvent.locationX || 0);
     },
     onPanResponderMove: (evt) => {
-      const x = evt.nativeEvent.locationX || 0;
-      const newTime = Math.max(0, Math.min((x / seekWidth) * duration, duration));
-      seek(newTime);
+      previewSeek(evt.nativeEvent.locationX || 0);
     },
-    onPanResponderRelease: () => {
+    onPanResponderRelease: async () => {
       setIsDraggingSeeking(false);
+      await seek(dragTimeRef.current);
     },
-  });
+    onPanResponderTerminate: async () => {
+      setIsDraggingSeeking(false);
+      await seek(dragTimeRef.current);
+    },
+  }), [duration, seekWidth, seek]);
 
   if (!currentSong) {
     return (
@@ -52,7 +71,8 @@ const PlayerBar = () => {
     );
   }
 
-  const progress = duration ? Math.min(currentTime / duration, 1) : 0;
+  const displayedTime = isDraggingSeeking ? dragTime : currentTime;
+  const progress = duration ? Math.min(displayedTime / duration, 1) : 0;
 
   return (
     <View style={styles.wrap}>
@@ -68,6 +88,9 @@ const PlayerBar = () => {
           <Text numberOfLines={1} style={styles.title}>{currentSong.title}</Text>
           <Text numberOfLines={1} style={styles.artist}>{currentSong.artist}</Text>
         </View>
+        <Pressable onPress={() => setQueueOpen(true)} style={[styles.smallButton, queue.length && styles.queueActive]}>
+          <Feather name="list" size={17} color={queue.length ? colors.pink : colors.muted} />
+        </Pressable>
         <Pressable onPress={cleanup} style={styles.smallButton}>
           <Feather name="x" size={17} color={colors.muted} />
         </Pressable>
@@ -106,13 +129,13 @@ const PlayerBar = () => {
       <View
         style={styles.seekTrackContainer}
         onLayout={(event) => setSeekWidth(event.nativeEvent.layout.width || 1)}
-        {...seekPanResponderRef.current.panHandlers}
+        {...seekPanResponder.panHandlers}
       >
         <Pressable
           style={styles.seekTrack}
-          onPress={(event) => {
+          onPress={async (event) => {
             const x = event.nativeEvent.locationX || 0;
-            seek((x / seekWidth) * duration);
+            await seek(getSeekTime(x));
           }}
         >
           <View style={[styles.seekFill, { width: `${progress * 100}%` }]} />
@@ -127,9 +150,41 @@ const PlayerBar = () => {
         />
       </View>
       <View style={styles.timeRow}>
-        <Text style={styles.time}>{formatDuration(currentTime)}</Text>
+        <Text style={styles.time}>{formatDuration(displayedTime)}</Text>
         <Text style={styles.time}>{formatDuration(duration)}</Text>
       </View>
+      <Modal transparent visible={queueOpen} animationType="fade" onRequestClose={() => setQueueOpen(false)}>
+        <Pressable style={styles.queueBackdrop} onPress={() => setQueueOpen(false)}>
+          <Pressable style={styles.queuePanel}>
+            <View style={styles.queueHeading}>
+              <Text style={styles.queueTitle}>Queue</Text>
+              {queue.length ? (
+                <Pressable onPress={clearQueue} style={styles.clearButton}>
+                  <Text style={styles.clearText}>Clear</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {queue.length ? (
+              <ScrollView style={styles.queueList}>
+                {queue.map((song, index) => (
+                  <View key={`${song.id}-${index}`} style={styles.queueItem}>
+                    <Text style={styles.queueIndex}>{index + 1}</Text>
+                    <View style={styles.queueMeta}>
+                      <Text numberOfLines={1} style={styles.queueSongTitle}>{song.title}</Text>
+                      <Text numberOfLines={1} style={styles.queueArtist}>{song.artist}</Text>
+                    </View>
+                    <Pressable onPress={() => removeFromQueue(index)} style={styles.removeQueueButton}>
+                      <Feather name="trash-2" size={16} color={colors.danger} />
+                    </Pressable>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : (
+              <Text style={styles.emptyQueue}>No queued songs yet.</Text>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -209,6 +264,9 @@ const styles = StyleSheet.create({
   smallButton: {
     padding: 8,
   },
+  queueActive: {
+    borderColor: 'rgba(251, 113, 133, 0.42)',
+  },
   transport: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -270,6 +328,79 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontFamily: font.regular,
     fontSize: 12,
+  },
+  queueBackdrop: {
+    backgroundColor: 'rgba(2, 6, 23, 0.72)',
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 18,
+  },
+  queuePanel: {
+    backgroundColor: colors.panelStrong,
+    borderColor: colors.border,
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 12,
+    maxHeight: '70%',
+    padding: 14,
+  },
+  queueHeading: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  queueTitle: {
+    color: colors.text,
+    fontFamily: font.extra,
+    fontSize: 18,
+  },
+  clearButton: {
+    padding: 8,
+  },
+  clearText: {
+    color: colors.cyan,
+    fontFamily: font.bold,
+  },
+  queueList: {
+    maxHeight: 360,
+  },
+  queueItem: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.62)',
+    borderColor: colors.border,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 8,
+    padding: 10,
+  },
+  queueIndex: {
+    color: colors.muted,
+    fontFamily: font.bold,
+    width: 22,
+  },
+  queueMeta: {
+    flex: 1,
+  },
+  queueSongTitle: {
+    color: colors.text,
+    fontFamily: font.semi,
+  },
+  queueArtist: {
+    color: colors.muted,
+    fontFamily: font.regular,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  removeQueueButton: {
+    padding: 8,
+  },
+  emptyQueue: {
+    color: colors.muted,
+    fontFamily: font.regular,
+    paddingVertical: 18,
+    textAlign: 'center',
   },
 });
 

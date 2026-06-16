@@ -12,6 +12,7 @@ import {
   updateMediaPlaybackState,
 } from '../utils/mediaControls';
 import { assetUrl } from '../utils/music';
+import { getLocalPlaybackUri } from '../utils/offlineSongs';
 
 const requestAndroidNotificationPermission = async () => {
   if (Platform.OS !== 'android' || Platform.Version < 33) return true;
@@ -58,6 +59,7 @@ const usePlayerStore = create((set, get) => {
   return {
     currentSong: null,
     playlist: [],
+    queue: [],
     shuffledPlaylist: [],
     currentIndex: -1,
     isPlaying: false,
@@ -86,8 +88,15 @@ const usePlayerStore = create((set, get) => {
         shouldDuckAndroid: true,
       });
 
+      let playbackUri = assetUrl(song.audioUrl);
+      try {
+        playbackUri = (await getLocalPlaybackUri(song.id)) || playbackUri;
+      } catch (error) {
+        console.warn('Falling back to streaming playback:', error);
+      }
+
       const { sound } = await Audio.Sound.createAsync(
-        { uri: assetUrl(song.audioUrl) },
+        { uri: playbackUri },
         { shouldPlay: true, volume: state.isMuted ? 0 : state.volume },
         (status) => {
           if (!status.isLoaded) return;
@@ -177,6 +186,16 @@ const usePlayerStore = create((set, get) => {
       }
     },
 
+    addToQueue: (song) => {
+      if (!song?.audioUrl) return;
+      set((state) => ({ queue: [...state.queue, song] }));
+    },
+
+    removeFromQueue: (index) =>
+      set((state) => ({ queue: state.queue.filter((_, itemIndex) => itemIndex !== index) })),
+
+    clearQueue: () => set({ queue: [] }),
+
     togglePlay: async () => {
       const { sound, isPlaying, currentTime } = get();
       if (!sound) return;
@@ -191,6 +210,13 @@ const usePlayerStore = create((set, get) => {
 
     playNext: () => {
       const state = get();
+      if (state.queue.length > 0) {
+        const [nextSong, ...rest] = state.queue;
+        set({ queue: rest });
+        get().playSong(nextSong, state.playlist.length ? state.playlist : [nextSong]);
+        return;
+      }
+
       const activeList =
         state.isShuffled && state.shuffledPlaylist.length > 0
           ? state.shuffledPlaylist

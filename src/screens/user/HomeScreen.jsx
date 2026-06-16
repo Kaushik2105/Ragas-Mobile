@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import api from '../../api/axios';
 import EmptyState from '../../components/common/EmptyState';
 import Loader from '../../components/common/Loader';
 import PageHeader from '../../components/common/PageHeader';
-import Panel from '../../components/common/Panel';
 import AddToPlaylistModal from '../../components/songs/AddToPlaylistModal';
 import FeedbackModal from '../../components/songs/FeedbackModal';
 import SongCard from '../../components/songs/SongCard';
@@ -45,47 +44,6 @@ const HomeScreen = () => {
     load();
   }, [load]);
 
-  const glowAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, {
-          toValue: 1,
-          duration: 3500,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }),
-        Animated.timing(glowAnim, {
-          toValue: 0,
-          duration: 3500,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }),
-      ])
-    ).start();
-  }, [glowAnim]);
-
-  const animatedHeroStyle = {
-    backgroundColor: glowAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: ['rgba(168, 85, 247, 0.16)', 'rgba(168, 85, 247, 0.32)'],
-    }),
-    borderColor: glowAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: ['rgba(168, 85, 247, 0.35)', 'rgba(34, 211, 238, 0.75)'],
-    }),
-    shadowColor: colors.cyan,
-    shadowOpacity: glowAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0.15, 0.45],
-    }),
-    shadowRadius: glowAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [12, 28],
-    }),
-  };
-
   const favoriteIds = useMemo(() => new Set(getFavoritesSongs(favorites).map((song) => song.id)), [favorites]);
   const featured = useMemo(() => [...songs].sort((a, b) => (b.playCount || 0) - (a.playCount || 0)).slice(0, 6), [songs]);
   const recentSongs = useMemo(() => [...songs].slice(0, 12), [songs]);
@@ -116,7 +74,7 @@ const HomeScreen = () => {
         <EmptyState title="No songs yet" message="Ask an admin to upload tracks and this page will light up." />
       ) : (
         <>
-          <Animated.View style={[styles.panel, styles.hero, animatedHeroStyle]}>
+          <View style={[styles.panel, styles.hero]}>
             <Text style={screenStyles.eyebrow}>Featured mix</Text>
             <Text style={styles.heroTitle}>{featured[0]?.title || 'Discover the stream'}</Text>
             <Text style={styles.heroCopy}>{featured[0] ? `${featured[0].artist} | ${featured[0].genre || 'Genre bending'}` : 'Your top played songs appear here.'}</Text>
@@ -125,7 +83,7 @@ const HomeScreen = () => {
               <Text style={styles.stat}><Text style={styles.statStrong}>{favorites.length}</Text> favorites</Text>
               <Text style={styles.stat}><Text style={styles.statStrong}>{playlists.length}</Text> playlists</Text>
             </View>
-          </Animated.View>
+          </View>
 
           <Text style={screenStyles.sectionTitle}>Featured</Text>
           {featured.map((song) => (
