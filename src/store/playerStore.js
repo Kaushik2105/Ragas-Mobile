@@ -63,6 +63,7 @@ const usePlayerStore = create((set, get) => {
     shuffledPlaylist: [],
     currentIndex: -1,
     isPlaying: false,
+    isLoading: false,
     duration: 0,
     currentTime: 0,
     volume: 0.8,
@@ -72,15 +73,46 @@ const usePlayerStore = create((set, get) => {
     sound: null,
 
     playSong: async (song, songList = []) => {
-      const state = get();
       if (!song?.audioUrl) return;
 
+      const state = get();
+
+      // Avoid duplicate loading requests for the same song, or toggle playback if already loaded
+      if (state.currentSong?.id === song.id) {
+        if (state.sound) {
+          get().togglePlay();
+          return;
+        } else if (state.isLoading) {
+          // Song is currently loading/decrypting, ignore duplicate press
+          return;
+        }
+      }
+
+      // Unload any currently playing sound immediately
       if (state.sound) {
-        await state.sound.unloadAsync();
+        try {
+          await state.sound.unloadAsync();
+        } catch (error) {
+          console.warn('Failed to unload previous sound:', error);
+        }
       }
 
       const list = songList.length > 0 ? songList : [song];
       const index = list.findIndex((item) => item.id === song.id);
+
+      // Instantly set loading state and metadata to reflect in the UI immediately
+      set({
+        currentSong: song,
+        playlist: list,
+        shuffledPlaylist: state.isShuffled ? state.shuffledPlaylist : [],
+        currentIndex: index >= 0 ? index : 0,
+        sound: null,
+        currentTime: 0,
+        duration: song.duration || 0,
+        isLoading: true,
+        isPlaying: false,
+      });
+
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
@@ -95,94 +127,111 @@ const usePlayerStore = create((set, get) => {
         console.warn('Falling back to streaming playback:', error);
       }
 
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: playbackUri },
-        { shouldPlay: true, volume: state.isMuted ? 0 : state.volume },
-        (status) => {
-          if (!status.isLoaded) return;
+      // If user switched songs while we were resolving local files, discard
+      if (get().currentSong?.id !== song.id) {
+        return;
+      }
 
-          const nextDuration = (status.durationMillis || 0) / 1000;
-          const nextTime = (status.positionMillis || 0) / 1000;
-          const hasDurationChanged = get().duration !== nextDuration;
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: playbackUri },
+          { shouldPlay: true, volume: get().isMuted ? 0 : get().volume },
+          (status) => {
+            if (!status.isLoaded) return;
 
-          set({
-            isPlaying: status.isPlaying,
-            duration: nextDuration,
-            currentTime: nextTime,
-          });
+            // Only update store state if this callback corresponds to the active song
+            if (get().currentSong?.id !== song.id) return;
 
-          // Sync metadata once duration resolves from the async stream loader
-          if (hasDurationChanged && nextDuration > 0) {
-            updateMediaMetadata({
-              title: song.title,
-              artist: song.artist,
-              artwork: song.coverImage ? { uri: assetUrl(song.coverImage) } : undefined,
+            // Fix duration garbage values by preferring metadata duration
+            const nextDuration = song.duration || (status.durationMillis || 0) / 1000;
+            const nextTime = (status.positionMillis || 0) / 1000;
+            const hasDurationChanged = get().duration !== nextDuration;
+
+            set({
+              isPlaying: status.isPlaying,
               duration: nextDuration,
-              elapsedTime: nextTime,
+              currentTime: nextTime,
             });
-          }
 
-          // Regularly sync playback position to native widget (no lag since rate 1 handles native interpolation)
-          if (status.isPlaying) {
-            updateMediaPlaybackState(
-              PlaybackState.PLAYING,
-              nextTime,
-              1
-            );
-          }
+            if (hasDurationChanged && nextDuration > 0) {
+              updateMediaMetadata({
+                title: song.title,
+                artist: song.artist,
+                artwork: song.coverImage ? { uri: assetUrl(song.coverImage) } : undefined,
+                duration: nextDuration,
+                elapsedTime: nextTime,
+              });
+            }
 
-          if (status.didJustFinish) {
-            const latest = get();
-            if (latest.repeatMode === 'one') {
-              get().playSong(latest.currentSong, latest.playlist);
-            } else {
-              get().playNext();
+            if (status.isPlaying) {
+              updateMediaPlaybackState(
+                PlaybackState.PLAYING,
+                nextTime,
+                1
+              );
+            }
+
+            if (status.didJustFinish) {
+              const latest = get();
+              if (latest.repeatMode === 'one') {
+                get().playSong(latest.currentSong, latest.playlist);
+              } else {
+                get().playNext();
+              }
             }
           }
+        );
+
+        // Concurrency Lock: did the user change songs while the player was loading?
+        if (get().currentSong?.id !== song.id) {
+          await sound.unloadAsync();
+          return;
         }
-      );
 
-      api.post(`/songs/${song.id}/play`).catch(() => {});
-      set({
-        currentSong: song,
-        playlist: list,
-        shuffledPlaylist: state.isShuffled ? state.shuffledPlaylist : [],
-        currentIndex: index >= 0 ? index : 0,
-        sound,
-        currentTime: 0,
-        isPlaying: true,
-      });
+        api.post(`/songs/${song.id}/play`).catch(() => {});
 
-      // Enable system controls and post the notification banner
-      try {
-        await requestAndroidNotificationPermission();
-        await enableMediaControls({
-          capabilities: [
-            Command.PLAY,
-            Command.PAUSE,
-            Command.NEXT_TRACK,
-            Command.PREVIOUS_TRACK,
-            Command.SEEK,
-          ],
-          compactCapabilities: [
-            Command.PREVIOUS_TRACK,
-            Command.PLAY,
-            Command.NEXT_TRACK,
-          ],
-          notification: {
-            color: '#a855f7',
-            showWhenClosed: true,
-          },
+        set({
+          sound,
+          isLoading: false,
+          isPlaying: true,
         });
-        await updateMediaMetadata({
-          title: song.title,
-          artist: song.artist,
-          artwork: song.coverImage ? { uri: assetUrl(song.coverImage) } : undefined,
-          duration: 0,
-        });
-        await updateMediaPlaybackState(PlaybackState.PLAYING, 0, 1);
-      } catch (e) {
-        console.warn('Failed to configure native media controls:', e);
+
+        // Enable system controls and post the notification banner
+        try {
+          await requestAndroidNotificationPermission();
+          await enableMediaControls({
+            capabilities: [
+              Command.PLAY,
+              Command.PAUSE,
+              Command.NEXT_TRACK,
+              Command.PREVIOUS_TRACK,
+              Command.SEEK,
+            ],
+            compactCapabilities: [
+              Command.PREVIOUS_TRACK,
+              Command.PLAY,
+              Command.NEXT_TRACK,
+            ],
+            notification: {
+              color: '#a855f7',
+              showWhenClosed: true,
+            },
+          });
+          await updateMediaMetadata({
+            title: song.title,
+            artist: song.artist,
+            artwork: song.coverImage ? { uri: assetUrl(song.coverImage) } : undefined,
+            duration: song.duration || 0,
+          });
+          await updateMediaPlaybackState(PlaybackState.PLAYING, 0, 1);
+        } catch (e) {
+          console.warn('Failed to configure native media controls:', e);
+        }
+      } catch (error) {
+        console.error('Failed to load audio sound:', error);
+        if (get().currentSong?.id === song.id) {
+          set({ isLoading: false });
+        }
       }
     },
 

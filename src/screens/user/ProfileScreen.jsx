@@ -16,7 +16,7 @@ import { assetUrl, initials, unwrap } from '../../utils/music';
 import { screenStyles } from './screenStyles';
 import Footer from '../../components/common/Footer';
 
-const ProfileScreen = () => {
+const ProfileScreen = ({ navigation }) => {
   const { user, updateUser, logout } = useAuthStore();
   const [profile, setProfile] = useState(user);
   const [name, setName] = useState(user?.name || '');
@@ -97,6 +97,10 @@ const ProfileScreen = () => {
 
   return (
     <ScrollView contentContainerStyle={[screenStyles.screen, screenStyles.section]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+        <Feather name="arrow-left" size={16} color={colors.cyan} />
+        <Text style={styles.backText}>Back</Text>
+      </Pressable>
       <PageHeader eyebrow="Profile" title="Tune your identity" description="Keep your listener profile current." />
       <Panel style={styles.card}>
         <View style={styles.avatar}>
@@ -161,6 +165,18 @@ const styles = StyleSheet.create({
   logout: {
     color: '#fecdd3',
     fontFamily: font.extra,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: -8,
+    alignSelf: 'flex-start',
+  },
+  backText: {
+    color: colors.cyan,
+    fontFamily: font.bold,
+    fontSize: 14,
   },
 });
 

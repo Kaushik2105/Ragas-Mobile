@@ -39,29 +39,56 @@ const createLocalKey = () => {
   return bytes.join('');
 };
 
+const ALPHABET_MAP = new Int8Array(256);
+for (let i = 0; i < 256; i++) {
+  ALPHABET_MAP[i] = -1;
+}
+for (let i = 0; i < BASE64_ALPHABET.length; i++) {
+  ALPHABET_MAP[BASE64_ALPHABET.charCodeAt(i)] = i;
+}
+
 const maskBase64 = (value, key, direction = 1) => {
-  const keyCodes = key.split('').map((char) => char.charCodeAt(0));
-  const chars = new Array(value.length);
-
-  for (let index = 0; index < value.length; index += 1) {
-    const char = value[index];
-    const charIndex = BASE64_ALPHABET.indexOf(char);
-
-    if (charIndex === -1) {
-      chars[index] = char;
-      continue;
-    }
-
-    const shift = keyCodes[index % keyCodes.length] % BASE64_ALPHABET.length;
-    const nextIndex =
-      direction > 0
-        ? (charIndex + shift) % BASE64_ALPHABET.length
-        : (charIndex - shift + BASE64_ALPHABET.length) % BASE64_ALPHABET.length;
-
-    chars[index] = BASE64_ALPHABET[nextIndex];
+  const keyLength = key.length;
+  const shifts = new Uint8Array(keyLength);
+  for (let i = 0; i < keyLength; i++) {
+    shifts[i] = key.charCodeAt(i) % 64;
   }
 
-  return chars.join('');
+  const len = value.length;
+  const inputBytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    inputBytes[i] = value.charCodeAt(i);
+  }
+
+  const outputBytes = new Uint8Array(len);
+  const alphabetCodes = new Uint8Array(64);
+  for (let i = 0; i < 64; i++) {
+    alphabetCodes[i] = BASE64_ALPHABET.charCodeAt(i);
+  }
+
+  for (let i = 0; i < len; i++) {
+    const code = inputBytes[i];
+    const charIndex = ALPHABET_MAP[code];
+    if (charIndex === -1) {
+      outputBytes[i] = code;
+    } else {
+      const shift = shifts[i % keyLength];
+      let nextIndex;
+      if (direction > 0) {
+        nextIndex = (charIndex + shift) % 64;
+      } else {
+        nextIndex = (charIndex - shift + 64) % 64;
+      }
+      outputBytes[i] = alphabetCodes[nextIndex];
+    }
+  }
+
+  const chunks = [];
+  const chunkSize = 32768;
+  for (let i = 0; i < len; i += chunkSize) {
+    chunks.push(String.fromCharCode.apply(null, outputBytes.subarray(i, i + chunkSize)));
+  }
+  return chunks.join('');
 };
 
 const getEncryptionKey = async () => {
@@ -167,13 +194,18 @@ export const getLocalPlaybackUri = async (songId) => {
   if (!(await isSongDownloaded(songId))) return null;
 
   await ensureDir(CACHE_DIR);
+  const localUri = cachePath(songId);
+  const localInfo = await FileSystem.getInfoAsync(localUri);
+  if (localInfo.exists) {
+    return localUri;
+  }
+
   const key = await getEncryptionKey();
   const encrypted = await FileSystem.readAsStringAsync(encryptedPath(songId));
   const decrypted = maskBase64(encrypted, key, -1);
 
   if (!decrypted) return null;
 
-  const localUri = cachePath(songId);
   await FileSystem.writeAsStringAsync(localUri, decrypted, {
     encoding: FileSystem.EncodingType.Base64,
   });

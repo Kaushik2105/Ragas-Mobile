@@ -18,12 +18,14 @@ import DownloadsScreen from '../screens/user/DownloadsScreen';
 import PlaylistsScreen from '../screens/user/PlaylistsScreen';
 import ProfileScreen from '../screens/user/ProfileScreen';
 import SearchScreen from '../screens/user/SearchScreen';
-
+import MoreScreen from '../screens/user/MoreScreen';
+import FeedbackScreen from '../screens/user/FeedbackScreen';
+ 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
-
+ 
 const tabIcon = (name) => ({ color, size }) => <Feather name={name} color={color} size={size} />;
-
+ 
 const MainTabs = () => (
   <View style={styles.main}>
     <Tab.Navigator
@@ -41,14 +43,13 @@ const MainTabs = () => (
       <Tab.Screen name="Search" component={SearchScreen} options={{ tabBarIcon: tabIcon('search') }} />
       <Tab.Screen name="Favorites" component={FavoritesScreen} options={{ tabBarIcon: tabIcon('heart') }} />
       <Tab.Screen name="Downloads" component={DownloadsScreen} options={{ tabBarIcon: tabIcon('download') }} />
-      <Tab.Screen name="Playlists" component={PlaylistsScreen} options={{ tabBarIcon: tabIcon('list') }} />
-      <Tab.Screen name="Profile" component={ProfileScreen} options={{ tabBarIcon: tabIcon('user') }} />
+      <Tab.Screen name="More" component={MoreScreen} options={{ tabBarIcon: tabIcon('more-horizontal') }} />
     </Tab.Navigator>
     <PlayerBar />
     <WelcomeAnimation />
   </View>
 );
-
+ 
 const AuthStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
     <Stack.Screen name="Login" component={LoginScreen} />
@@ -57,16 +58,21 @@ const AuthStack = () => (
     <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
   </Stack.Navigator>
 );
-
+ 
 const AppNavigator = () => {
   const { isAuthenticated, isHydrating } = useAuthStore();
-
+ 
   if (isHydrating) return <Loader label="Restoring your session" />;
-
+ 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
       {isAuthenticated ? (
-        <Stack.Screen name="Main" component={MainTabs} />
+        <>
+          <Stack.Screen name="Main" component={MainTabs} />
+          <Stack.Screen name="Playlists" component={PlaylistsScreen} />
+          <Stack.Screen name="Profile" component={ProfileScreen} />
+          <Stack.Screen name="Feedback" component={FeedbackScreen} />
+        </>
       ) : (
         <Stack.Screen name="Auth" component={AuthStack} />
       )}

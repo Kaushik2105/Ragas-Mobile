@@ -16,7 +16,7 @@ import { unwrap } from '../../utils/music';
 import { screenStyles } from './screenStyles';
 import Footer from '../../components/common/Footer';
 
-const PlaylistsScreen = () => {
+const PlaylistsScreen = ({ navigation }) => {
   const [playlists, setPlaylists] = useState([]);
   const [publicPlaylists, setPublicPlaylists] = useState([]);
   const [activePlaylist, setActivePlaylist] = useState(null);
@@ -103,6 +103,10 @@ const PlaylistsScreen = () => {
 
   return (
     <ScrollView contentContainerStyle={[screenStyles.screen, screenStyles.section]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+        <Feather name="arrow-left" size={16} color={colors.cyan} />
+        <Text style={styles.backText}>Back</Text>
+      </Pressable>
       <PageHeader eyebrow="Playlists" title="Build little worlds" description="Create personal or public playlists and arrange songs from the catalog." />
       <Panel style={styles.form}>
         <TextInputField placeholder="New playlist name" value={name} onChangeText={setName} />
@@ -216,6 +220,18 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: font.extra,
     fontSize: 24,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: -8,
+    alignSelf: 'flex-start',
+  },
+  backText: {
+    color: colors.cyan,
+    fontFamily: font.bold,
+    fontSize: 14,
   },
 });
 

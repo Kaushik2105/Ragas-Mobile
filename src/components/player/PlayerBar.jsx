@@ -1,11 +1,11 @@
 import { Feather } from '@expo/vector-icons';
 import { useMemo, useRef, useState } from 'react';
-import { Image, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../../theme/colors';
 import { font } from '../../theme/typography';
 import { assetUrl, formatDuration } from '../../utils/music';
 import usePlayerStore from '../../store/playerStore';
-
+ 
 const PlayerBar = () => {
   const [seekWidth, setSeekWidth] = useState(1);
   const [isDraggingSeeking, setIsDraggingSeeking] = useState(false);
@@ -16,6 +16,7 @@ const PlayerBar = () => {
     currentSong,
     queue,
     isPlaying,
+    isLoading,
     duration,
     currentTime,
     isShuffled,
@@ -102,8 +103,12 @@ const PlayerBar = () => {
         <Pressable onPress={playPrev} style={styles.iconButton}>
           <Feather name="skip-back" size={19} color={colors.text} />
         </Pressable>
-        <Pressable onPress={togglePlay} style={styles.playButton}>
-          <Feather name={isPlaying ? 'pause' : 'play'} size={21} color={colors.dark} />
+        <Pressable onPress={togglePlay} disabled={isLoading} style={styles.playButton}>
+          {isLoading ? (
+            <ActivityIndicator size="small" color={colors.dark} />
+          ) : (
+            <Feather name={isPlaying ? 'pause' : 'play'} size={21} color={colors.dark} />
+          )}
         </Pressable>
         <Pressable onPress={playNext} style={styles.iconButton}>
           <Feather name="skip-forward" size={19} color={colors.text} />
