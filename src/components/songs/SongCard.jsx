@@ -89,7 +89,7 @@ const Equalizer = ({ compact }) => (
   </View>
 );
 
-const SongCard = ({ song, songs = [], isFavorite = false, onFavorite, onAddToPlaylist, onFeedback, onDownloadChange, compact = false }) => {
+const SongCard = ({ song, songs = [], isFavorite = false, onFavorite, onAddToPlaylist, onFeedback, onDownloadChange, onRemoveFromPlaylist, compact = false, featured = false }) => {
   const { currentSong, isPlaying, playSong, addToQueue } = usePlayerStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
@@ -148,11 +148,12 @@ const SongCard = ({ song, songs = [], isFavorite = false, onFavorite, onAddToPla
       style={[
         styles.card,
         compact && styles.compactCard,
+        featured && styles.featuredCard,
         active && styles.activeCard,
       ]}
     >
-      <View style={[styles.innerCard, compact && styles.compactCard]}>
-        <Pressable onPress={() => playSong(song, songs)} style={[styles.cover, compact && styles.compactCover]}>
+      <View style={[styles.innerCard, compact && styles.compactCard, featured && styles.featuredInnerCard]}>
+        <Pressable onPress={() => playSong(song, songs)} style={[styles.cover, compact && styles.compactCover, featured && styles.featuredCover]}>
           {song.coverImage ? (
             <Image source={{ uri: assetUrl(song.coverImage) }} style={styles.coverImage} />
           ) : (
@@ -161,20 +162,20 @@ const SongCard = ({ song, songs = [], isFavorite = false, onFavorite, onAddToPla
             </View>
           )}
           {active && isPlaying ? (
-            <View style={[styles.playPill, compact && styles.compactPlayPill, styles.eqPill]}>
+            <View style={[styles.playPill, (compact || featured) && styles.compactPlayPill, styles.eqPill]}>
               <Equalizer compact={compact} />
             </View>
           ) : (
-            <View style={[styles.playPill, compact && styles.compactPlayPill]}>
-              <Feather name="play" size={compact ? 14 : 18} color={colors.dark} />
+            <View style={[styles.playPill, (compact || featured) && styles.compactPlayPill]}>
+              <Feather name="play" size={compact || featured ? 14 : 18} color={colors.dark} />
             </View>
           )}
         </Pressable>
         <View style={styles.meta}>
-          <Text numberOfLines={1} style={styles.title}>
+          <Text numberOfLines={1} style={[styles.title, featured && styles.featuredTitle]}>
             {song.title}
           </Text>
-          <Text numberOfLines={1} style={styles.artist}>
+          <Text numberOfLines={1} style={[styles.artist, featured && styles.featuredArtist]}>
             {song.artist}
           </Text>
           <View style={styles.details}>
@@ -187,7 +188,7 @@ const SongCard = ({ song, songs = [], isFavorite = false, onFavorite, onAddToPla
           </View>
         </View>
         <View style={styles.actions}>
-          {compact ? <View style={styles.actionSpacerCompact} /> : <View style={styles.actionSpacer} />}
+          {compact || featured ? <View style={styles.actionSpacerCompact} /> : <View style={styles.actionSpacer} />}
           <IconButton name="more-horizontal" active={downloaded} onPress={() => setMenuOpen(true)} />
         </View>
       </View>
@@ -205,6 +206,9 @@ const SongCard = ({ song, songs = [], isFavorite = false, onFavorite, onAddToPla
               />
             ) : null}
             {onAddToPlaylist ? <MenuAction icon="plus-square" label="Add to playlist" onPress={() => runMenuAction(() => onAddToPlaylist(song))} /> : null}
+            {onRemoveFromPlaylist ? (
+              <MenuAction icon="trash-2" label="Remove from playlist" danger onPress={() => runMenuAction(() => onRemoveFromPlaylist(song))} />
+            ) : null}
             {onFeedback ? <MenuAction icon="star" label="Feedback" onPress={() => runMenuAction(() => onFeedback(song))} /> : null}
             <MenuAction
               icon={downloaded ? 'trash-2' : 'download'}
@@ -220,10 +224,10 @@ const SongCard = ({ song, songs = [], isFavorite = false, onFavorite, onAddToPla
   );
 };
 
-const MenuAction = ({ icon, label, active, busy, onPress }) => (
+const MenuAction = ({ icon, label, active, busy, danger, onPress }) => (
   <Pressable onPress={onPress} disabled={busy} style={({ pressed }) => [styles.menuAction, pressed && styles.menuActionPressed]}>
-    {busy ? <ActivityIndicator size="small" color={colors.cyan} /> : <Feather name={icon} size={18} color={active ? colors.pink : colors.text} />}
-    <Text style={[styles.menuActionText, active && styles.menuActionTextActive]}>{label}</Text>
+    {busy ? <ActivityIndicator size="small" color={colors.cyan} /> : <Feather name={icon} size={18} color={danger ? '#fecdd3' : active ? colors.pink : colors.text} />}
+    <Text style={[styles.menuActionText, active && styles.menuActionTextActive, danger && styles.menuActionTextDanger]}>{label}</Text>
   </Pressable>
 );
 
@@ -242,9 +246,17 @@ const styles = StyleSheet.create({
     padding: 12,
     flex: 1,
   },
+  featuredInnerCard: {
+    gap: 9,
+    padding: 9,
+  },
   compactCard: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  featuredCard: {
+    borderRadius: 18,
+    marginBottom: 0,
   },
   activeCard: {
     borderColor: 'rgba(34, 211, 238, 0.62)',
@@ -259,6 +271,10 @@ const styles = StyleSheet.create({
     height: 74,
     width: 74,
     aspectRatio: undefined,
+  },
+  featuredCover: {
+    aspectRatio: 1,
+    borderRadius: 14,
   },
   coverImage: {
     height: '100%',
@@ -308,9 +324,15 @@ const styles = StyleSheet.create({
     fontFamily: font.extra,
     fontSize: 17,
   },
+  featuredTitle: {
+    fontSize: 14,
+  },
   artist: {
     color: colors.muted,
     fontFamily: font.regular,
+  },
+  featuredArtist: {
+    fontSize: 12,
   },
   details: {
     flexDirection: 'row',
@@ -395,6 +417,9 @@ const styles = StyleSheet.create({
   },
   menuActionTextActive: {
     color: colors.pink,
+  },
+  menuActionTextDanger: {
+    color: '#fecdd3',
   },
   equalizer: {
     alignItems: 'flex-end',

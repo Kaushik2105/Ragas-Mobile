@@ -5,14 +5,21 @@ import { colors } from '../../theme/colors';
 import { font } from '../../theme/typography';
 import Panel from '../common/Panel';
 
-const AddToPlaylistModal = ({ song, playlists = [], onClose }) => {
-  const add = async (playlist) => {
+const AddToPlaylistModal = ({ song, playlists = [], onClose, onChange }) => {
+  const changeMembership = async (playlist) => {
+    const isInPlaylist = playlist.songs?.some((item) => item.id === song.id);
     try {
-      await api.post(`/playlists/${playlist.id}/songs`, { songId: song.id });
-      Toast.show({ type: 'success', text1: 'Added to playlist' });
+      if (isInPlaylist) {
+        await api.delete(`/playlists/${playlist.id}/songs/${song.id}`);
+        Toast.show({ type: 'success', text1: 'Removed from playlist' });
+      } else {
+        await api.post(`/playlists/${playlist.id}/songs`, { songId: song.id });
+        Toast.show({ type: 'success', text1: 'Added to playlist' });
+      }
+      await onChange?.();
       onClose?.();
     } catch (error) {
-      Toast.show({ type: 'error', text1: error.response?.data?.message || 'Could not add song' });
+      Toast.show({ type: 'error', text1: error.response?.data?.message || 'Could not update playlist' });
     }
   };
 
@@ -22,12 +29,15 @@ const AddToPlaylistModal = ({ song, playlists = [], onClose }) => {
         <Panel style={styles.modal}>
           <Text style={styles.title}>Add to playlist</Text>
           <Text style={styles.message}>{song?.title}</Text>
-          {playlists.length ? playlists.map((playlist) => (
-            <Pressable key={playlist.id} onPress={() => add(playlist)} style={styles.item}>
+          {playlists.length ? playlists.map((playlist) => {
+            const isInPlaylist = playlist.songs?.some((item) => item.id === song?.id);
+            return (
+            <Pressable key={playlist.id} onPress={() => changeMembership(playlist)} style={[styles.item, isInPlaylist && styles.removeItem]}>
               <Text style={styles.itemText}>{playlist.name}</Text>
-              <Text style={styles.itemMeta}>{playlist.isPublic ? 'Public' : 'Private'}</Text>
+              <Text style={[styles.itemMeta, isInPlaylist && styles.removeMeta]}>{isInPlaylist ? 'Remove song' : playlist.isPublic ? 'Public' : 'Private'}</Text>
             </Pressable>
-          )) : <Text style={styles.message}>Create a playlist first, then come back here.</Text>}
+          );
+          }) : <Text style={styles.message}>Create a playlist first, then come back here.</Text>}
           <Pressable onPress={onClose} style={styles.close}>
             <Text style={styles.closeText}>Close</Text>
           </Pressable>
@@ -69,11 +79,19 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: font.bold,
   },
+  removeItem: {
+    borderColor: 'rgba(244, 63, 94, 0.38)',
+    backgroundColor: 'rgba(244, 63, 94, 0.12)',
+  },
   itemMeta: {
     color: colors.muted,
     fontFamily: font.regular,
     fontSize: 12,
     marginTop: 4,
+  },
+  removeMeta: {
+    color: '#fecdd3',
+    fontFamily: font.bold,
   },
   close: {
     alignItems: 'center',

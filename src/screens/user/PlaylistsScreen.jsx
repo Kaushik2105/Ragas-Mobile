@@ -12,15 +12,16 @@ import TextInputField from '../../components/common/TextInputField';
 import SongCard from '../../components/songs/SongCard';
 import { colors } from '../../theme/colors';
 import { font } from '../../theme/typography';
-import { unwrap } from '../../utils/music';
+import { formatPlayCount, playlistPlayCount, unwrap } from '../../utils/music';
 import { screenStyles } from './screenStyles';
 import Footer from '../../components/common/Footer';
 
-const PlaylistsScreen = ({ navigation }) => {
+const PlaylistsScreen = ({ navigation, route }) => {
+  const initialTab = route?.params?.tab === 'public' ? 'public' : 'mine';
   const [playlists, setPlaylists] = useState([]);
   const [publicPlaylists, setPublicPlaylists] = useState([]);
   const [activePlaylist, setActivePlaylist] = useState(null);
-  const [activeTab, setActiveTab] = useState('mine');
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [name, setName] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -33,13 +34,13 @@ const PlaylistsScreen = ({ navigation }) => {
       const publicData = unwrap(publicResponse);
       setPlaylists(data);
       setPublicPlaylists(publicData);
-      setActivePlaylist(data[0] || publicData[0] || null);
+      setActivePlaylist(activeTab === 'public' ? publicData[0] || null : data[0] || null);
     } catch (error) {
       Toast.show({ type: 'error', text1: error.response?.data?.message || 'Could not load playlists' });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => {
     load();
@@ -125,7 +126,7 @@ const PlaylistsScreen = ({ navigation }) => {
           <Pressable key={playlist.id} onPress={() => selectPlaylist(playlist)} style={[styles.chip, activePlaylist?.id === playlist.id && styles.activeChip]}>
             <Text numberOfLines={1} style={styles.chipTitle}>{playlist.name}</Text>
             <View style={styles.chipMeta}>
-              <Text style={styles.chipMetaText}>{playlist.isPublic ? 'Public' : 'Private'}</Text>
+              <Text style={styles.chipMetaText}>{activeTab === 'public' ? `${formatPlayCount(playlistPlayCount(playlist))} plays` : playlist.isPublic ? 'Public' : 'Private'}</Text>
               <Feather name={playlist.isPublic ? 'unlock' : 'lock'} size={13} color={colors.muted} />
             </View>
           </Pressable>
@@ -139,6 +140,7 @@ const PlaylistsScreen = ({ navigation }) => {
                 <Text style={screenStyles.eyebrow}>{activePlaylist.isPublic ? 'Public' : 'Private'} playlist</Text>
                 <Text style={styles.detailTitle}>{activePlaylist.name}</Text>
                 {activeTab === 'public' && activePlaylist.owner?.name ? <Text style={screenStyles.muted}>Curated by {activePlaylist.owner.name}</Text> : null}
+                <Text style={screenStyles.muted}>{formatPlayCount(playlistPlayCount(activePlaylist))} total plays</Text>
               </View>
               {activeTab === 'mine' ? (
                 <GhostButton danger onPress={removePlaylist}>
@@ -147,7 +149,7 @@ const PlaylistsScreen = ({ navigation }) => {
               ) : null}
             </View>
             {activePlaylist.songs?.length ? activePlaylist.songs.map((song) => (
-              <SongCard key={song.id} song={song} songs={activePlaylist.songs} onFavorite={activeTab === 'mine' ? removeSong : undefined} compact />
+              <SongCard key={song.id} song={song} songs={activePlaylist.songs} onRemoveFromPlaylist={activeTab === 'mine' ? removeSong : undefined} compact />
             )) : <EmptyState title="Playlist is empty" message="Use the list button on songs from Home or Search to add tracks." />}
           </>
         ) : (
