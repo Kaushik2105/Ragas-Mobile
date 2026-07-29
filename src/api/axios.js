@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-// export const API_BASE_URL = 'http://10.60.138.14:5000/api';
+// export const API_BASE_URL = 'http://10.155.70.14:5000/api';
 export const API_BASE_URL = 'https://ragas-backend-api.onrender.com/api';
 
 const api = axios.create({

@@ -1,6 +1,6 @@
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { useEffect, useRef } from 'react';
-import { Animated } from 'react-native';
+import { Animated, Platform, StatusBar as RNStatusBar, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Linking from 'expo-linking';
 import {
@@ -85,7 +85,10 @@ export default function App() {
 
   return (
     <GradientBackground>
-      <StatusBar style="light" />
+      <StatusBar style="light" backgroundColor={colors.bg} translucent={true} />
+      {Platform.OS === 'android' && (
+        <View style={{ height: RNStatusBar.currentHeight, backgroundColor: colors.bg }} />
+      )}
       <Animated.View style={{ flex: 1, opacity: appOpacity }}>
         <NavigationContainer theme={navigationTheme} linking={linking}>
           <AppNavigator />

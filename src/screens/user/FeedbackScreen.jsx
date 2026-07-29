@@ -1,4 +1,4 @@
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -155,7 +155,7 @@ const FeedbackScreen = () => {
           </View>
           {item.isPinned && (
             <View style={styles.pinned}>
-              <Feather name="pin" size={12} color={colors.cyan} />
+              <MaterialCommunityIcons name="pin" size={12} color={colors.cyan} />
               <Text style={styles.pinnedText}>Pinned</Text>
             </View>
           )}

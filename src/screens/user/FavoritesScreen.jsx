@@ -12,7 +12,7 @@ import { getFavoritesSongs, unwrap } from '../../utils/music';
 import { screenStyles } from './screenStyles';
 import Footer from '../../components/common/Footer';
 
-const FavoritesScreen = () => {
+const FavoritesScreen = ({ navigation }) => {
   const [favorites, setFavorites] = useState([]);
   const [playlists, setPlaylists] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +35,11 @@ const FavoritesScreen = () => {
 
   useEffect(() => {
     load();
-  }, [load]);
+    const unsubscribe = navigation.addListener('focus', () => {
+      load();
+    });
+    return unsubscribe;
+  }, [navigation, load]);
 
   const removeFavorite = async (song) => {
     try {

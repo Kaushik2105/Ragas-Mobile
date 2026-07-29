@@ -1,4 +1,4 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import api from '../../api/axios';
 import { colors } from '../../theme/colors';
@@ -29,15 +29,21 @@ const AddToPlaylistModal = ({ song, playlists = [], onClose, onChange }) => {
         <Panel style={styles.modal}>
           <Text style={styles.title}>Add to playlist</Text>
           <Text style={styles.message}>{song?.title}</Text>
-          {playlists.length ? playlists.map((playlist) => {
-            const isInPlaylist = playlist.songs?.some((item) => item.id === song?.id);
-            return (
-            <Pressable key={playlist.id} onPress={() => changeMembership(playlist)} style={[styles.item, isInPlaylist && styles.removeItem]}>
-              <Text style={styles.itemText}>{playlist.name}</Text>
-              <Text style={[styles.itemMeta, isInPlaylist && styles.removeMeta]}>{isInPlaylist ? 'Remove song' : playlist.isPublic ? 'Public' : 'Private'}</Text>
-            </Pressable>
-          );
-          }) : <Text style={styles.message}>Create a playlist first, then come back here.</Text>}
+          {playlists.length ? (
+            <ScrollView style={styles.scrollList} contentContainerStyle={styles.listContainer} showsVerticalScrollIndicator={false}>
+              {playlists.map((playlist) => {
+                const isInPlaylist = playlist.songs?.some((item) => item.id === song?.id);
+                return (
+                  <Pressable key={playlist.id} onPress={() => changeMembership(playlist)} style={[styles.item, isInPlaylist && styles.removeItem]}>
+                    <Text style={styles.itemText}>{playlist.name}</Text>
+                    <Text style={[styles.itemMeta, isInPlaylist && styles.removeMeta]}>{isInPlaylist ? 'Remove song' : playlist.isPublic ? 'Public' : 'Private'}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          ) : (
+            <Text style={styles.message}>Create a playlist first, then come back here.</Text>
+          )}
           <Pressable onPress={onClose} style={styles.close}>
             <Text style={styles.closeText}>Close</Text>
           </Pressable>
@@ -101,6 +107,13 @@ const styles = StyleSheet.create({
   closeText: {
     color: colors.cyan,
     fontFamily: font.bold,
+  },
+  scrollList: {
+    maxHeight: 240,
+    marginVertical: 4,
+  },
+  listContainer: {
+    gap: 10,
   },
 });
 

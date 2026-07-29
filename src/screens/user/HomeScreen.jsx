@@ -11,12 +11,16 @@ import FeedbackModal from '../../components/songs/FeedbackModal';
 import SongCard from '../../components/songs/SongCard';
 import { colors } from '../../theme/colors';
 import { font } from '../../theme/typography';
-import { assetUrl, formatPlayCount, getFavoritesSongs, getSongsFromPayload, playlistPlayCount, songPlayCount, unwrap } from '../../utils/music';
+import usePlayerStore from '../../store/playerStore';
+import { assetUrl, formatPlayCount, getFavoritesSongs, getSongsFromPayload, getTotalSongsFromPayload, playlistPlayCount, songPlayCount, unwrap } from '../../utils/music';
 import { screenStyles } from './screenStyles';
 import Footer from '../../components/common/Footer';
 
 const HomeScreen = ({ navigation }) => {
+  const { playSong } = usePlayerStore();
   const [songs, setSongs] = useState([]);
+  const [totalSongs, setTotalSongs] = useState(0);
+  const [totalPlays, setTotalPlays] = useState(0);
   const [favorites, setFavorites] = useState([]);
   const [playlists, setPlaylists] = useState([]);
   const [publicPlaylists, setPublicPlaylists] = useState([]);
@@ -33,7 +37,10 @@ const HomeScreen = ({ navigation }) => {
         api.get('/playlists'),
         api.get('/playlists/public'),
       ]);
-      setSongs(getSongsFromPayload(unwrap(songsResponse)));
+      const songsData = unwrap(songsResponse);
+      setSongs(getSongsFromPayload(songsData));
+      setTotalSongs(getTotalSongsFromPayload(songsData));
+      setTotalPlays(songsData?.totalPlayCount || 0);
       setFavorites(unwrap(favoritesResponse));
       setPlaylists(unwrap(playlistsResponse));
       const publicData = unwrap(publicPlaylistsResponse);
@@ -53,7 +60,11 @@ const HomeScreen = ({ navigation }) => {
 
   useEffect(() => {
     load();
-  }, [load]);
+    const unsubscribe = navigation.addListener('focus', () => {
+      load();
+    });
+    return unsubscribe;
+  }, [navigation, load]);
 
   const favoriteIds = useMemo(() => new Set(getFavoritesSongs(favorites).map((song) => song.id)), [favorites]);
   const featured = useMemo(
@@ -94,9 +105,22 @@ const HomeScreen = ({ navigation }) => {
             <Text style={styles.heroTitle}>{featured[0]?.title || 'Discover the stream'}</Text>
             <Text style={styles.heroCopy}>{featured[0] ? `${featured[0].artist} | ${featured[0].genre || 'Genre bending'}` : 'Your top played songs appear here.'}</Text>
             <View style={styles.stats}>
-              <Text style={styles.stat}><Text style={styles.statStrong}>{songs.length}</Text> tracks</Text>
-              <Text style={styles.stat}><Text style={styles.statStrong}>{favorites.length}</Text> favorites</Text>
-              <Text style={styles.stat}><Text style={styles.statStrong}>{playlists.length}</Text> playlists</Text>
+              <View style={styles.stat}>
+                <Text style={styles.statStrong}>{totalSongs}</Text>
+                <Text style={styles.statLabel}>tracks</Text>
+              </View>
+              <View style={styles.stat}>
+                <Text style={styles.statStrong}>{favorites.length}</Text>
+                <Text style={styles.statLabel}>favorites</Text>
+              </View>
+              <View style={styles.stat}>
+                <Text style={styles.statStrong}>{playlists.length}</Text>
+                <Text style={styles.statLabel}>playlists</Text>
+              </View>
+              <View style={styles.stat}>
+                <Text style={styles.statStrong}>{formatPlayCount(totalPlays)}</Text>
+                <Text style={styles.statLabel}>plays</Text>
+              </View>
             </View>
           </View>
 
@@ -120,6 +144,19 @@ const HomeScreen = ({ navigation }) => {
                       ) : (
                         <Feather name="music" size={24} color={colors.cyan} />
                       )}
+                      <Pressable
+                        onPress={() => {
+                          if (playlist.songs && playlist.songs.length > 0) {
+                            playSong(playlist.songs[0], playlist.songs);
+                            Toast.show({ type: 'success', text1: `Playing playlist: ${playlist.name}` });
+                          } else {
+                            Toast.show({ type: 'error', text1: 'This playlist has no songs to play' });
+                          }
+                        }}
+                        style={styles.playlistPlayButton}
+                      >
+                        <Feather name="play" size={12} color={colors.dark} style={{ marginLeft: 2 }} />
+                      </Pressable>
                     </View>
                     <Text numberOfLines={1} style={styles.playlistTitle}>{playlist.name}</Text>
                     <Text numberOfLines={1} style={styles.playlistOwner}>{playlist.owner?.name ? `by ${playlist.owner.name}` : 'Public playlist'}</Text>
@@ -184,22 +221,31 @@ const styles = StyleSheet.create({
   },
   stats: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 8,
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 12,
   },
   stat: {
+    flex: 1,
     borderColor: colors.border,
-    borderRadius: 999,
+    borderRadius: 16,
     borderWidth: 1,
-    color: colors.muted,
-    fontFamily: font.regular,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.38)',
   },
   statStrong: {
     color: colors.text,
     fontFamily: font.extra,
+    fontSize: 16,
+    lineHeight: 18,
+    marginBottom: 2,
+  },
+  statLabel: {
+    color: colors.muted,
+    fontFamily: font.regular,
+    fontSize: 10,
   },
   featuredPlaylists: {
     gap: 12,
@@ -281,6 +327,23 @@ const styles = StyleSheet.create({
     flexBasis: '47%',
     flexGrow: 1,
     maxWidth: '50%',
+  },
+  playlistPlayButton: {
+    position: 'absolute',
+    right: 8,
+    bottom: 8,
+    backgroundColor: colors.text,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
+    zIndex: 10,
   },
 });
 

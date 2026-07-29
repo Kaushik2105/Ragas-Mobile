@@ -18,7 +18,11 @@ export const formatDuration = (seconds = 0) => {
 
 export const formatPlayCount = (count = 0) => {
   const safeCount = Number.isFinite(Number(count)) ? Number(count) : 0;
-  return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(safeCount);
+  if (safeCount >= 1000) {
+    const formatted = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(safeCount);
+    return `${formatted.toLowerCase()}+`;
+  }
+  return String(safeCount);
 };
 
 const numericValue = (...values) => {
@@ -69,6 +73,8 @@ export const initials = (name = 'MS') =>
     .join('') || 'MS';
 
 export const getSongsFromPayload = (payload) => payload?.songs ?? payload ?? [];
+
+export const getTotalSongsFromPayload = (payload) => payload?.pagination?.total ?? 0;
 
 export const getFavoritesSongs = (favorites = []) =>
   favorites.map((favorite) => favorite.song).filter(Boolean);

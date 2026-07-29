@@ -44,7 +44,11 @@ const PlaylistsScreen = ({ navigation, route }) => {
 
   useEffect(() => {
     load();
-  }, [load]);
+    const unsubscribe = navigation.addListener('focus', () => {
+      load();
+    });
+    return unsubscribe;
+  }, [navigation, load]);
 
   const createPlaylist = async () => {
     if (!name.trim()) return;
