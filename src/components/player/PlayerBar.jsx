@@ -5,12 +5,14 @@ import { colors } from '../../theme/colors';
 import { font } from '../../theme/typography';
 import { assetUrl, formatDuration } from '../../utils/music';
 import usePlayerStore from '../../store/playerStore';
+import PlayerModal from './PlayerModal';
  
 const PlayerBar = () => {
   const [seekWidth, setSeekWidth] = useState(1);
   const [isDraggingSeeking, setIsDraggingSeeking] = useState(false);
   const [dragTime, setDragTime] = useState(0);
   const [queueOpen, setQueueOpen] = useState(false);
+  const [playerModalOpen, setPlayerModalOpen] = useState(false);
   const dragTimeRef = useRef(0);
   const {
     currentSong,
@@ -78,17 +80,19 @@ const PlayerBar = () => {
   return (
     <View style={styles.wrap}>
       <View style={styles.nowPlaying}>
-        {currentSong.coverImage ? (
-          <Image source={{ uri: assetUrl(currentSong.coverImage) }} style={styles.cover} />
-        ) : (
-          <View style={styles.coverFallback}>
-            <Text style={styles.coverLetter}>{currentSong.title?.[0] || 'M'}</Text>
+        <Pressable onPress={() => setPlayerModalOpen(true)} style={styles.nowPlayingContent}>
+          {currentSong.coverImage ? (
+            <Image source={{ uri: assetUrl(currentSong.coverImage) }} style={styles.cover} />
+          ) : (
+            <View style={styles.coverFallback}>
+              <Text style={styles.coverLetter}>{currentSong.title?.[0] || 'M'}</Text>
+            </View>
+          )}
+          <View style={styles.songText}>
+            <Text numberOfLines={1} style={styles.title}>{currentSong.title}</Text>
+            <Text numberOfLines={1} style={styles.artist}>{currentSong.artist}</Text>
           </View>
-        )}
-        <View style={styles.songText}>
-          <Text numberOfLines={1} style={styles.title}>{currentSong.title}</Text>
-          <Text numberOfLines={1} style={styles.artist}>{currentSong.artist}</Text>
-        </View>
+        </Pressable>
         <Pressable onPress={() => setQueueOpen(true)} style={[styles.smallButton, queue.length && styles.queueActive]}>
           <Feather name="list" size={17} color={queue.length ? colors.pink : colors.muted} />
         </Pressable>
@@ -146,6 +150,7 @@ const PlayerBar = () => {
           <View style={[styles.seekFill, { width: `${progress * 100}%` }]} />
         </Pressable>
         <View
+          pointerEvents="none"
           style={[
             styles.seekThumb,
             {
@@ -190,6 +195,7 @@ const PlayerBar = () => {
           </Pressable>
         </Pressable>
       </Modal>
+      <PlayerModal visible={playerModalOpen} onClose={() => setPlayerModalOpen(false)} />
     </View>
   );
 };
@@ -231,6 +237,12 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   nowPlaying: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+  },
+  nowPlayingContent: {
+    flex: 1,
     alignItems: 'center',
     flexDirection: 'row',
     gap: 12,

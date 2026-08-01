@@ -29,18 +29,18 @@ const styles = StyleSheet.create({
     width: 260,
     height: 260,
     borderRadius: 130,
-    opacity: 0.28,
   },
   purpleGlow: {
     left: -110,
     top: -70,
     backgroundColor: colors.accent,
+    opacity: 0.15,
   },
   cyanGlow: {
     right: -120,
     top: 28,
     backgroundColor: colors.cyan,
-    opacity: 0.18,
+    opacity: 0.10,
   },
 });
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import api from '../../api/axios';
 import EmptyState from '../../components/common/EmptyState';
@@ -16,14 +16,19 @@ import { assetUrl, formatPlayCount, getFavoritesSongs, getSongsFromPayload, getT
 import { screenStyles } from './screenStyles';
 import Footer from '../../components/common/Footer';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import useAuthStore from '../../store/authStore';
+
 const HomeScreen = ({ navigation }) => {
   const { playSong } = usePlayerStore();
+  const { user } = useAuthStore();
   const [songs, setSongs] = useState([]);
   const [totalSongs, setTotalSongs] = useState(0);
   const [totalPlays, setTotalPlays] = useState(0);
   const [favorites, setFavorites] = useState([]);
   const [playlists, setPlaylists] = useState([]);
   const [publicPlaylists, setPublicPlaylists] = useState([]);
+  const [pinnedPlaylistIds, setPinnedPlaylistIds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [feedbackSong, setFeedbackSong] = useState(null);
   const [playlistSong, setPlaylistSong] = useState(null);
@@ -44,19 +49,22 @@ const HomeScreen = ({ navigation }) => {
       setFavorites(unwrap(favoritesResponse));
       setPlaylists(unwrap(playlistsResponse));
       const publicData = unwrap(publicPlaylistsResponse);
-      if (__DEV__ && publicData?.[0]) {
-        console.log('Featured playlist play count payload', {
-          keys: Object.keys(publicData[0]),
-          total: playlistPlayCount(publicData[0]),
-        });
-      }
       setPublicPlaylists(publicData);
+
+      if (user?.id) {
+        const storedPins = await AsyncStorage.getItem(`pinnedPlaylists_${user.id}`);
+        if (storedPins) {
+          setPinnedPlaylistIds(JSON.parse(storedPins));
+        } else {
+          setPinnedPlaylistIds([]);
+        }
+      }
     } catch (error) {
       Toast.show({ type: 'error', text1: error.response?.data?.message || 'Could not load your music' });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     load();
@@ -72,7 +80,46 @@ const HomeScreen = ({ navigation }) => {
     [songs]
   );
   const recentSongs = useMemo(() => [...songs].slice(0, 12), [songs]);
-  const featuredPlaylists = useMemo(() => [...publicPlaylists].slice(0, 5), [publicPlaylists]);
+  const featuredPlaylists = useMemo(() => {
+    const pinnedList = [];
+    pinnedPlaylistIds.forEach((id) => {
+      const pl = playlists.find((p) => p.id === id) || publicPlaylists.find((p) => p.id === id);
+      if (pl) {
+        pinnedList.push({ ...pl, isPinned: true });
+      }
+    });
+
+    const pinnedSet = new Set(pinnedPlaylistIds);
+    const remainingSlots = 10 - pinnedList.length;
+    const restPublic = publicPlaylists
+      .filter((p) => !pinnedSet.has(p.id))
+      .slice(0, Math.max(0, remainingSlots))
+      .map((p) => ({ ...p, isPinned: false }));
+
+    return [...pinnedList, ...restPublic];
+  }, [playlists, publicPlaylists, pinnedPlaylistIds]);
+
+  const togglePinPlaylist = async (playlistId) => {
+    if (!user?.id) return;
+    try {
+      let nextPins = [...pinnedPlaylistIds];
+      if (pinnedPlaylistIds.includes(playlistId)) {
+        nextPins = nextPins.filter((id) => id !== playlistId);
+        Toast.show({ type: 'success', text1: 'Playlist unpinned' });
+      } else {
+        if (nextPins.length >= 3) {
+          Toast.show({ type: 'error', text1: 'You can only pin up to 3 playlists.' });
+          return;
+        }
+        nextPins.push(playlistId);
+        Toast.show({ type: 'success', text1: 'Playlist pinned' });
+      }
+      setPinnedPlaylistIds(nextPins);
+      await AsyncStorage.setItem(`pinnedPlaylists_${user.id}`, JSON.stringify(nextPins));
+    } catch (error) {
+      Toast.show({ type: 'error', text1: 'Failed to update pin state' });
+    }
+  };
 
   const toggleFavorite = async (song) => {
     try {
@@ -137,13 +184,26 @@ const HomeScreen = ({ navigation }) => {
                 {featuredPlaylists.map((playlist) => {
                   const coverSong = playlist.songs?.find((song) => song.coverImage) || playlist.songs?.[0];
                   return (
-                  <Pressable key={playlist.id} onPress={() => navigation.navigate('Playlists', { tab: 'public' })} style={styles.playlistCard}>
+                  <Pressable key={playlist.id} onPress={() => navigation.navigate('Playlists', { playlistId: playlist.id })} style={styles.playlistCard}>
                     <View style={styles.playlistArt}>
                       {coverSong?.coverImage ? (
                         <Image source={{ uri: assetUrl(coverSong.coverImage) }} style={styles.playlistImage} />
                       ) : (
                         <Feather name="music" size={24} color={colors.cyan} />
                       )}
+                      <Pressable
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          togglePinPlaylist(playlist.id);
+                        }}
+                        style={styles.playlistPinButton}
+                      >
+                        <MaterialCommunityIcons
+                          name={playlist.isPinned ? "pin" : "pin-outline"}
+                          size={13}
+                          color={playlist.isPinned ? colors.pink : colors.muted}
+                        />
+                      </Pressable>
                       <Pressable
                         onPress={() => {
                           if (playlist.songs && playlist.songs.length > 0) {
@@ -343,6 +403,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 3,
     elevation: 4,
+    zIndex: 10,
+  },
+  playlistPinButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     zIndex: 10,
   },
 });
