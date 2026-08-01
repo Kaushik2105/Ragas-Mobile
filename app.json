@@ -10,7 +10,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -39,10 +41,13 @@
           "enableBackgroundAudio": true,
           "audioSessionCategory": "playback"
         }
-      ]
+      ],
+      "@react-native-google-signin/google-signin"
     ],
     "extra": {
       "apiBaseUrl": "https://ragas-backend-api.onrender.com/api",
+      "googleWebClientId": "621426543476-7lkvts60d3puk5q32qnp2ktscamvaant.apps.googleusercontent.com",
+      "googleAndroidClientId": "621426543476-quervtqad69lp8g04pvjkecc5rbvtjbd.apps.googleusercontent.com",
       "eas": {
         "projectId": "8e5c768b-62d0-4a88-8e9b-c385be5ae088"
       }

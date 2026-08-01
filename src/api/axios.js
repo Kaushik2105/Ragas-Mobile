@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import useAuthStore from '../store/authStore';
 
 // export const API_BASE_URL = 'http://10.155.70.14:5000/api';
 export const API_BASE_URL = 'https://ragas-backend-api.onrender.com/api';
@@ -31,6 +32,8 @@ api.interceptors.response.use(
     const isAuthRequest =
       requestUrl.includes('/auth/login') ||
       requestUrl.includes('/auth/register') ||
+      requestUrl.includes('/auth/google') ||
+      requestUrl.includes('/auth/logout') ||
       requestUrl.includes('/auth/refresh-token');
 
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
@@ -43,7 +46,11 @@ api.interceptors.response.use(
           return api(originalRequest);
         }
       } catch (refreshError) {
-        await AsyncStorage.multiRemove(['accessToken', 'user']);
+        try {
+          await useAuthStore.getState().logout();
+        } catch {
+          await AsyncStorage.multiRemove(['accessToken', 'user']);
+        }
         return Promise.reject(refreshError);
       }
     }
